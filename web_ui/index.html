@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rollodor Control</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #14141f;
+    --surface-2: #1e1e2e;
+    --border: #2a2a3d;
+    --accent: #ff6b35;
+    --accent-glow: rgba(255, 107, 53, 0.3);
+    --green: #22c55e;
+    --green-glow: rgba(34, 197, 94, 0.3);
+    --red: #ef4444;
+    --text: #e8e8f0;
+    --text-dim: #8888a0;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Outfit', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,107,53,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,107,53,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 24px 20px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+    animation: fadeIn 0.6s ease-out;
+  }
+
+  .header h1 {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, var(--accent), #ff9a6c);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header p {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Connection bar */
+  .connection {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    animation: fadeIn 0.6s ease-out 0.1s both;
+  }
+
+  .connection input {
+    flex: 1;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .connection input:focus {
+    border-color: var(--accent);
+  }
+
+  .connection input::placeholder {
+    color: var(--text-dim);
+  }
+
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+    transition: all 0.3s;
+  }
+
+  .status-dot.connected {
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green-glow);
+  }
+
+  .status-dot.sim {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+    animation: pulse 2s infinite;
+  }
+
+  /* Voice button */
+  .voice-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px 0;
+    animation: fadeIn 0.6s ease-out 0.2s both;
+  }
+
+  .mic-btn {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    position: relative;
+  }
+
+  .mic-btn:hover {
+    border-color: var(--accent);
+    transform: scale(1.05);
+  }
+
+  .mic-btn.listening {
+    border-color: var(--red);
+    background: rgba(239, 68, 68, 0.1);
+    animation: pulseRing 1.5s infinite;
+  }
+
+  .mic-btn svg {
+    width: 36px;
+    height: 36px;
+    fill: var(--text-dim);
+    transition: fill 0.3s;
+  }
+
+  .mic-btn:hover svg,
+  .mic-btn.listening svg {
+    fill: var(--text);
+  }
+
+  .voice-label {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: var(--mono);
+  }
+
+  .transcript {
+    margin-top: 10px;
+    font-size: 15px;
+    color: var(--accent);
+    font-family: var(--mono);
+    min-height: 24px;
+    text-align: center;
+  }
+
+  /* Manual controls */
+  .controls {
+    display: grid;
+    grid-template-areas:
+      ". fwd ."
+      "left stop right"
+      ". search .";
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin: 20px 0;
+    animation: fadeIn 0.6s ease-out 0.3s both;
+  }
+
+  .ctrl-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ctrl-btn:hover {
+    background: var(--surface-2);
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .ctrl-btn:active {
+    transform: translateY(0);
+    background: rgba(255, 107, 53, 0.15);
+  }
+
+  .ctrl-btn.active {
+    border-color: var(--accent);
+    background: rgba(255, 107, 53, 0.1);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+
+  .ctrl-btn .icon { font-size: 22px; }
+
+  [data-dir="forward"]  { grid-area: fwd; }
+  [data-dir="left"]     { grid-area: left; }
+  [data-dir="stop"]     { grid-area: stop; }
+  [data-dir="right"]    { grid-area: right; }
+  [data-dir="search"]   { grid-area: search; }
+
+  /* Log */
+  .log-section {
+    flex: 1;
+    animation: fadeIn 0.6s ease-out 0.4s both;
+  }
+
+  .log-header {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .log-clear {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .log-clear:hover { color: var(--accent); }
+
+  .log {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  .log::-webkit-scrollbar { width: 4px; }
+  .log::-webkit-scrollbar-track { background: transparent; }
+  .log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .log-entry {
+    display: flex;
+    gap: 8px;
+  }
+
+  .log-time { color: var(--text-dim); flex-shrink: 0; }
+  .log-cmd  { color: var(--accent); }
+  .log-info { color: var(--text-dim); }
+  .log-err  { color: var(--red); }
+  .log-voice { color: var(--green); }
+
+  /* Sim mode banner */
+  .sim-banner {
+    background: rgba(255, 107, 53, 0.08);
+    border: 1px dashed var(--accent);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--accent);
+    text-align: center;
+    margin-bottom: 16px;
+    font-family: var(--mono);
+    animation: fadeIn 0.6s ease-out 0.15s both;
+  }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+  }
+
+  @keyframes pulseRing {
+    0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    70%  { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>Rollodor</h1>
+    <p>Voice Control Terminal</p>
+  </div>
+
+  <div class="connection">
+    <div class="status-dot sim" id="statusDot"></div>
+    <input type="text" id="espUrl" placeholder="ESP32 IP (e.g. 192.168.1.100)"
+           spellcheck="false" autocomplete="off">
+  </div>
+
+  <div class="sim-banner" id="simBanner">
+    SIMULATION MODE — no ESP32 connected. Commands are logged locally.
+  </div>
+
+  <div class="voice-section">
+    <button class="mic-btn" id="micBtn" title="Hold to speak">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+      </svg>
+    </button>
+    <div class="voice-label" id="voiceLabel">Tap to speak</div>
+    <div class="transcript" id="transcript"></div>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn" data-dir="forward"  onclick="sendCommand('forward')">
+      <span class="icon">▲</span>FWD
+    </button>
+    <button class="ctrl-btn" data-dir="left"     onclick="sendCommand('left')">
+      <span class="icon">◄</span>LEFT
+    </button>
+    <button class="ctrl-btn" data-dir="stop"     onclick="sendCommand('stop')">
+      <span class="icon">■</span>STOP
+    </button>
+    <button class="ctrl-btn" data-dir="right"    onclick="sendCommand('right')">
+      <span class="icon">►</span>RIGHT
+    </button>
+    <button class="ctrl-btn" data-dir="search"   onclick="sendCommand('search')">
+      <span class="icon">◎</span>SCAN
+    </button>
+  </div>
+
+  <div class="log-section">
+    <div class="log-header">
+      <span>Command Log</span>
+      <button class="log-clear" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script>
+// =========================================================================
+// State
+// =========================================================================
+let isListening = false;
+let recognition = null;
+let simMode = true;
+
+const micBtn     = document.getElementById('micBtn');
+const voiceLabel = document.getElementById('voiceLabel');
+const transcript = document.getElementById('transcript');
+const espUrl     = document.getElementById('espUrl');
+const statusDot  = document.getElementById('statusDot');
+const simBanner  = document.getElementById('simBanner');
+const logEl      = document.getElementById('log');
+
+// =========================================================================
+// Command mapping — maps spoken phrases to motor commands
+// =========================================================================
+const VOICE_COMMANDS = {
+  // Movement
+  'come here':    'forward',
+  'come to me':   'forward',
+  'forward':      'forward',
+  'go':           'forward',
+  'come':         'forward',
+  'approach':     'forward',
+  // Turning
+  'left':         'left',
+  'turn left':    'left',
+  'go left':      'left',
+  'right':        'right',
+  'turn right':   'right',
+  'go right':     'right',
+  // Stop
+  'stop':         'stop',
+  'halt':         'stop',
+  'stay':         'stop',
+  'wait':         'stop',
+  'freeze':       'stop',
+  // Search
+  'find me':      'search',
+  'search':       'search',
+  'look around':  'search',
+  'scan':         'search',
+};
+
+// =========================================================================
+// Logging
+// =========================================================================
+function logMessage(text, type = 'info') {
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${time}</span><span class="log-${type}">${text}</span>`;
+  logEl.appendChild(entry);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function clearLog() {
+  logEl.innerHTML = '';
+  logMessage('Log cleared', 'info');
+}
+
+// =========================================================================
+// ESP32 connection
+// =========================================================================
+espUrl.addEventListener('input', () => {
+  const url = espUrl.value.trim();
+  if (url) {
+    simMode = false;
+    statusDot.className = 'status-dot connected';
+    simBanner.style.display = 'none';
+    logMessage(`Target: ${url}`, 'info');
+  } else {
+    simMode = true;
+    statusDot.className = 'status-dot sim';
+    simBanner.style.display = 'block';
+  }
+});
+
+// =========================================================================
+// Send command (to ESP32 or simulation)
+// =========================================================================
+async function sendCommand(dir) {
+  // Highlight active button
+  document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+  const activeBtn = document.querySelector(`[data-dir="${dir}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  if (simMode) {
+    logMessage(`→ ${dir.toUpperCase()}`, 'cmd');
+    return;
+  }
+
+  const url = espUrl.value.trim();
+  try {
+    const resp = await fetch(`http://${url}/cmd?dir=${dir}`, {
+      mode: 'cors',
+      signal: AbortSignal.timeout(3000),
+    });
+
+    if (resp.ok) {
+      logMessage(`→ ${dir.toUpperCase()}`, 'cmd');
+    } else {
+      logMessage(`HTTP ${resp.status} from ESP32`, 'err');
+    }
+  } catch (err) {
+    logMessage(`Connection failed: ${err.message}`, 'err');
+  }
+}
+
+// =========================================================================
+// Voice recognition (Web Speech API)
+// =========================================================================
+function matchCommand(text) {
+  const lower = text.toLowerCase().trim();
+
+  // Exact match first
+  if (VOICE_COMMANDS[lower]) return VOICE_COMMANDS[lower];
+
+  // Substring match
+  for (const [phrase, cmd] of Object.entries(VOICE_COMMANDS)) {
+    if (lower.includes(phrase)) return cmd;
+  }
+
+  return null;
+}
+
+function initSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    voiceLabel.textContent = 'Speech not supported in this browser';
+    micBtn.style.opacity = 0.4;
+    micBtn.style.cursor = 'not-allowed';
+    logMessage('Web Speech API not available — use Chrome or Edge', 'err');
+    return false;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (event) => {
+    let final = '';
+    let interim = '';
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const t = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        final += t;
+      } else {
+        interim += t;
+      }
+    }
+
+    // Show interim results
+    transcript.textContent = interim || final;
+
+    if (final) {
+      transcript.textContent = final;
+      const cmd = matchCommand(final);
+      if (cmd) {
+        logMessage(`Voice: "${final}" → ${cmd.toUpperCase()}`, 'voice');
+        sendCommand(cmd);
+      } else {
+        logMessage(`Voice: "${final}" — no matching command`, 'info');
+      }
+    }
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    micBtn.classList.remove('listening');
+    voiceLabel.textContent = 'Tap to speak';
+  };
+
+  recognition.onerror = (event) => {
+    if (event.error === 'no-speech') {
+      logMessage('No speech detected', 'info');
+    } else if (event.error !== 'aborted') {
+      logMessage(`Speech error: ${event.error}`, 'err');
+    }
+    isListening = false;
+    micBtn.classList.remove('listening');
+    voiceLabel.textContent = 'Tap to speak';
+  };
+
+  return true;
+}
+
+micBtn.addEventListener('click', () => {
+  if (!recognition && !initSpeechRecognition()) return;
+
+  if (isListening) {
+    recognition.stop();
+    isListening = false;
+    micBtn.classList.remove('listening');
+    voiceLabel.textContent = 'Tap to speak';
+  } else {
+    transcript.textContent = '';
+    recognition.start();
+    isListening = true;
+    micBtn.classList.add('listening');
+    voiceLabel.textContent = 'Listening...';
+  }
+});
+
+// =========================================================================
+// Keyboard shortcuts (for testing without voice)
+// =========================================================================
+document.addEventListener('keydown', (e) => {
+  if (document.activeElement === espUrl) return;
+
+  const keyMap = {
+    'ArrowUp':    'forward',
+    'ArrowLeft':  'left',
+    'ArrowDown':  'stop',
+    'ArrowRight': 'right',
+    'w':          'forward',
+    'a':          'left',
+    's':          'stop',
+    'd':          'right',
+    ' ':          'search',
+  };
+
+  const cmd = keyMap[e.key];
+  if (cmd) {
+    e.preventDefault();
+    sendCommand(cmd);
+  }
+});
+
+// =========================================================================
+// Init
+// =========================================================================
+logMessage('Rollodor control terminal started', 'info');
+logMessage('Simulation mode — enter ESP32 IP to connect', 'info');
+logMessage('Voice, buttons, or keyboard (WASD/arrows) ready', 'info');
+initSpeechRecognition();
+</script>
+</body>
+</html>
